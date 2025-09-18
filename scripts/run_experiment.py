@@ -161,8 +161,14 @@ def run_generic_experiment(config):
                 bias="none", task_type=TaskType.SEQ_CLS,
             )
             model_for_fish_peft = get_peft_model(model_for_fish, lora_config_fish)
+            fish_trainable_params = count_trainable_parameters(model_for_fish_peft)
+            prune_ratio = cfg_fish.get('prune_to_ratio_of_baseline', 1.0)
+            target_trainable_params = int(baseline_trainable_params * prune_ratio)
             
-            keep_ratio = calculate_keep_ratio(baseline_trainable_params, count_trainable_parameters(model_for_fish_peft))
+            keep_ratio = calculate_keep_ratio(target_trainable_params, fish_trainable_params)
+        
+            print(f"Targeting {prune_ratio:.0%} of baseline params: {target_trainable_params:,}")
+            print(f"Calculated keep_ratio to hit target: {keep_ratio:.4f}")
             
             calibration_dataset = tokenized_dataset["train"].shuffle(seed=42).select(range(cfg_fish['num_samples']))
             cols_to_remove = [cfg_dataset['text_column']]
