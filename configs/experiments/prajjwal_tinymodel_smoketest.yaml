@@ -41,3 +41,4 @@ fish_tuning:
   methods_to_run: ["fish", "rand", "rev"]
   # Use very few samples for the Fisher calculation.
   num_samples: 16
+  prune_to_ratio_of_baseline: 0.5
