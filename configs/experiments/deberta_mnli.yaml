@@ -1,0 +1,40 @@
+# configs/experiments/deberta_mnli.yaml
+# Configuration for fine-tuning microsoft/deberta-v3-base on the GLUE MNLI benchmark.
+
+model:
+  name: "microsoft/deberta-v3-base"
+  # DeBERTa doesn't typically need config overrides for classification heads.
+
+dataset:
+  name: "mnli"
+  load_args: ["glue", "mnli"]
+  text_column: "premise" # For simplicity, we use one column. A better approach would be to concatenate "premise" and "hypothesis".
+  label_column: "label"
+  validation_split: "validation_matched" # Standard validation split for MNLI
+
+lora:
+  baseline_rank: 8
+  fish_rank: 16
+  dropout: 0.0
+  # Target modules are specific to DeBERTa's architecture.
+  target_modules:
+    - "query_proj"
+    - "key_proj"
+    - "value_proj"
+  # DeBERTa also has a "pooler" layer before the classifier that we want to train densely.
+  names_to_exclude:
+    - "classifier"
+    - "pooler"
+
+training:
+  max_seq_length: 256 # MNLI often involves longer sentences than SST-2.
+  output_dir: "./results/deberta_mnli"
+  # We override some of the base training arguments for this larger dataset.
+  args_override:
+    # DeBERTa is larger and more memory-intensive than BERT-base.
+    per_device_train_batch_size: 8
+    per_device_eval_batch_size: 8
+    # MNLI is a very large dataset, so one epoch is often sufficient for good results.
+    num_train_epochs: 1
+    # MNLI has 3 labels, so the metric to track is still accuracy.
+    metric_for_best_model: "accuracy"

@@ -1,0 +1,19 @@
+model:
+  name: "bert-base-cased"
+
+dataset:
+  name: "sst2"
+  load_args: ["glue", "sst2"]
+  text_column: "sentence"
+  validation_split: "validation"
+
+lora:
+  baseline_rank: 8
+  fish_rank: 16
+  dropout: 0.0
+  target_modules: ["query", "key", "value"]
+  names_to_exclude: ["classifier"]
+
+training:
+  max_seq_length: 128
+  output_dir: "./results/bert_sst2"
