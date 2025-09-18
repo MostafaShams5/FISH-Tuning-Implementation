@@ -15,6 +15,9 @@ base_training:
     report_to: "none" # <--- ADD THIS LINE
 
 fish_tuning:
-  enabled: true
+  fish_tuning:
+  # List of methods to run. Options: "fish", "rand", "rev"
+  # An empty list [] will skip all masked experiments.
+  methods_to_run: ["fish", "rand", "rev"] 
   num_samples: 128
-report_to: "none"
+  report_to: "none"
