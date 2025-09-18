@@ -1,6 +1,8 @@
+# configs/base_config.yaml
+
 base_training:
   args:
-    learning_rate: 0.00005 # Explicitly written as a float
+    learning_rate: 0.00005
     per_device_train_batch_size: 16
     per_device_eval_batch_size: 16
     num_train_epochs: 3
@@ -10,7 +12,9 @@ base_training:
     save_strategy: "epoch"
     load_best_model_at_end: true
     metric_for_best_model: "accuracy"
+    report_to: "none" # <--- ADD THIS LINE
 
 fish_tuning:
   enabled: true
   num_samples: 128
+report_to: "none"
