@@ -1,4 +1,4 @@
-# scripts/run_experiment.py (Definitive Final Version with sklearn Metric)
+# scripts/run_experiment.py (Definitive Final Version with Helper Functions Restored)
 
 import torch
 import numpy as np
@@ -30,6 +30,17 @@ from fish_tuning import (
     calculate_fisher_information,
     create_mask_from_fisher,
 )
+
+# --- START: HELPER FUNCTIONS (RESTORED) ---
+def count_trainable_parameters(model):
+    """Counts the number of trainable parameters in a model."""
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def calculate_keep_ratio(baseline_params, target_params):
+    """Calculates the keep_ratio needed to match the baseline parameter count."""
+    return baseline_params / target_params
+# --- END: HELPER FUNCTIONS (RESTORED) ---
+
 
 # --- Resource Tracking Utilities ---
 def get_gpu_memory_usage():
@@ -73,14 +84,11 @@ def run_generic_experiment(config):
         tokenizer.pad_token = tokenizer.eos_token
         cfg_model.setdefault('config_overrides', {})['pad_token_id'] = tokenizer.eos_token_id
 
-    # --- START: ROBUST METRIC FIX ---
-    # Instead of relying on evaluate.load(), which can fail due to network/cache issues,
-    # we implement the accuracy metric directly using the reliable scikit-learn library.
+    # --- Define Metric Computation ---
     def compute_metrics(eval_pred):
         predictions, labels = eval_pred
         predictions = np.argmax(predictions, axis=1)
         return {"accuracy": accuracy_score(labels, predictions)}
-    # --- END: ROBUST METRIC FIX ---
 
     def preprocess_function(examples):
         return tokenizer(examples[cfg_dataset['text_column']], truncation=True, padding='max_length', max_length=cfg_training['max_seq_length'])
@@ -244,7 +252,6 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, required=True, help="Path to the experiment YAML config file.")
     args = parser.parse_args()
 
-    # Load base config
     with open('configs/base_config.yaml', 'r') as f:
         base_config = yaml.safe_load(f)
     with open(args.config, 'r') as f:
