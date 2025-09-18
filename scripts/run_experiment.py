@@ -19,6 +19,15 @@ from torch.utils.data import DataLoader
 from functools import partial
 
 import sys
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+# Get the project root directory by going one level up (e.g., /.../)
+project_root = os.path.dirname(script_dir)
+# Construct the path to the src directory
+src_path = os.path.join(project_root, 'src')
+# Add the src path to the system's module search path
+sys.path.insert(0, src_path)
+# --- END: ROBUST IMPORT FIX ---
 from fish_tuning import (
     FishTuningTrainer,
     calculate_fisher_information,
