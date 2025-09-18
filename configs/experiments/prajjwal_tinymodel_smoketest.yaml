@@ -1,10 +1,8 @@
 # configs/experiments/prajjwal_tinymodel_smoketest.yaml
-# A "smoke test" configuration for fast, end-to-end validation of the pipeline.
-# Uses a very small model and a tiny subset of data.
-# This should run in a couple of minutes on a CPU or seconds on a GPU.
+# A "smoke test" to validate the half-ratio pruning feature.
 
 model:
-  name: "prajjwal1/bert-tiny" # A tiny BERT model with only ~4.4M parameters.
+  name: "prajjwal1/bert-tiny"
 
 dataset:
   name: "sst2"
@@ -13,8 +11,8 @@ dataset:
   validation_split: "validation"
 
 lora:
-  baseline_rank: 4 # Smaller rank for a smaller model
-  fish_rank: 8     # Double the baseline rank
+  baseline_rank: 4
+  fish_rank: 8
   dropout: 0.0
   target_modules:
     - "query"
@@ -24,21 +22,18 @@ lora:
     - "classifier"
 
 training:
-  max_seq_length: 64 # Shorter sequence length for speed
-  output_dir: "./results/smoke_test"
+  max_seq_length: 64
+  output_dir: "./results/smoke_test_half_ratio" # Changed output dir
   args_override:
-    num_train_epochs: 1 # Only one epoch is needed for a smoke test.
-    per_device_train_batch_size: 8
-    per_device_eval_batch_size: 8
-    # Use a tiny subset of the data for extreme speed.
-    max_steps: 10 # Train for only 10 steps
-    eval_steps: 5 # Evaluate every 5 steps
+    num_train_epochs: 1
+    max_steps: 10
+    eval_steps: 5
     save_steps: 5
     logging_steps: 5
 
 fish_tuning:
-  # Run all methods to ensure all code paths are tested.
   methods_to_run: ["fish", "rand", "rev"]
-  # Use very few samples for the Fisher calculation.
   num_samples: 16
+  # THIS IS THE KEY ADDITION FOR THE TEST:
+  # We will prune the FISH models to 50% of the baseline's parameter count.
   prune_to_ratio_of_baseline: 0.5
