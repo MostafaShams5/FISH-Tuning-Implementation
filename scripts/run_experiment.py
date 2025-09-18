@@ -1,4 +1,4 @@
-# scripts/run_experiment.py (Definitive Final Version with Metric Fix)
+# scripts/run_experiment.py (Definitive Final Version with sklearn Metric)
 
 import torch
 import numpy as np
@@ -7,7 +7,7 @@ import yaml
 import os
 import time
 from datasets import load_dataset
-import evaluate # Use the modern 'evaluate' library
+from sklearn.metrics import accuracy_score # Use reliable, local scikit-learn for accuracy
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -62,10 +62,10 @@ def run_generic_experiment(config):
     cfg_model = config['model']
     cfg_dataset = config['dataset']
     cfg_lora = config['lora']
-    cfg_training =config['training']
+    cfg_training = config['training']
     cfg_fish = config['fish_tuning']
 
-    # --- Load Dataset, Tokenizer, and Metric ---
+    # --- Load Dataset and Tokenizer ---
     print(f"Loading dataset '{cfg_dataset['name']}' and tokenizer for '{cfg_model['name']}'...")
     dataset = load_dataset(*cfg_dataset['load_args'])
     tokenizer = AutoTokenizer.from_pretrained(cfg_model['name'])
@@ -73,17 +73,14 @@ def run_generic_experiment(config):
         tokenizer.pad_token = tokenizer.eos_token
         cfg_model.setdefault('config_overrides', {})['pad_token_id'] = tokenizer.eos_token_id
 
-    # --- START: METRIC FIX ---
-    # The 'glue' loader can be tricky. Since sst2 and mnli both use accuracy,
-    # let's load the 'accuracy' metric directly for simplicity and robustness.
-    metric = evaluate.load("accuracy")
-    
+    # --- START: ROBUST METRIC FIX ---
+    # Instead of relying on evaluate.load(), which can fail due to network/cache issues,
+    # we implement the accuracy metric directly using the reliable scikit-learn library.
     def compute_metrics(eval_pred):
         predictions, labels = eval_pred
         predictions = np.argmax(predictions, axis=1)
-        # The 'accuracy' metric's compute function takes 'predictions' and 'references'.
-        return metric.compute(predictions=predictions, references=labels)
-    # --- END: METRIC FIX ---
+        return {"accuracy": accuracy_score(labels, predictions)}
+    # --- END: ROBUST METRIC FIX ---
 
     def preprocess_function(examples):
         return tokenizer(examples[cfg_dataset['text_column']], truncation=True, padding='max_length', max_length=cfg_training['max_seq_length'])
