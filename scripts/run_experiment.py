@@ -1,4 +1,4 @@
-# scripts/run_experiment.py (Definitive Final Version)
+# scripts/run_experiment.py (Definitive Final Version with Metric Fix)
 
 import torch
 import numpy as np
@@ -36,7 +36,6 @@ def get_gpu_memory_usage():
     """Returns peak memory usage in MB using PyTorch's official tracker."""
     if not torch.cuda.is_available():
         return "N/A"
-    # Returns the peak GPU memory allocated to the tensor since the last reset.
     peak_mem_bytes = torch.cuda.max_memory_allocated()
     return f"{peak_mem_bytes / 1024**2:.2f} MB"
 
@@ -50,7 +49,7 @@ class CudaTimer:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.end_event.record()
-        torch.cuda.synchronize()  # Wait for all kernels to complete
+        torch.cuda.synchronize()
         self.elapsed_time_ms = self.start_event.elapsed_time(self.end_event)
 
     def elapsed_seconds(self):
@@ -63,22 +62,28 @@ def run_generic_experiment(config):
     cfg_model = config['model']
     cfg_dataset = config['dataset']
     cfg_lora = config['lora']
-    cfg_training = config['training']
+    cfg_training =config['training']
     cfg_fish = config['fish_tuning']
 
     # --- Load Dataset, Tokenizer, and Metric ---
+    print(f"Loading dataset '{cfg_dataset['name']}' and tokenizer for '{cfg_model['name']}'...")
     dataset = load_dataset(*cfg_dataset['load_args'])
     tokenizer = AutoTokenizer.from_pretrained(cfg_model['name'])
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
         cfg_model.setdefault('config_overrides', {})['pad_token_id'] = tokenizer.eos_token_id
 
-    # FIXED: Use the modern evaluate.load for metrics
-    metric = evaluate.load('glue', cfg_dataset['name'])
+    # --- START: METRIC FIX ---
+    # The 'glue' loader can be tricky. Since sst2 and mnli both use accuracy,
+    # let's load the 'accuracy' metric directly for simplicity and robustness.
+    metric = evaluate.load("accuracy")
+    
     def compute_metrics(eval_pred):
-        preds, labels = eval_pred
-        preds = np.argmax(preds, axis=1)
-        return metric.compute(predictions=preds, references=labels)
+        predictions, labels = eval_pred
+        predictions = np.argmax(predictions, axis=1)
+        # The 'accuracy' metric's compute function takes 'predictions' and 'references'.
+        return metric.compute(predictions=predictions, references=labels)
+    # --- END: METRIC FIX ---
 
     def preprocess_function(examples):
         return tokenizer(examples[cfg_dataset['text_column']], truncation=True, padding='max_length', max_length=cfg_training['max_seq_length'])
