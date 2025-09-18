@@ -19,7 +19,6 @@ from torch.utils.data import DataLoader
 from functools import partial
 
 import sys
-sys.path.append('../src') 
 from fish_tuning import (
     FishTuningTrainer,
     calculate_fisher_information,
