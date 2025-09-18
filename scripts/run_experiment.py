@@ -1,4 +1,4 @@
-# scripts/run_experiment.py (Definitive Final Version with Helper Functions Restored)
+# scripts/run_experiment.py (Final Version with Ratio Control)
 
 import torch
 import numpy as np
@@ -7,7 +7,7 @@ import yaml
 import os
 import time
 from datasets import load_dataset
-from sklearn.metrics import accuracy_score # Use reliable, local scikit-learn for accuracy
+from sklearn.metrics import accuracy_score
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -31,18 +31,15 @@ from fish_tuning import (
     create_mask_from_fisher,
 )
 
-# --- START: HELPER FUNCTIONS (RESTORED) ---
+# --- Helper & Resource Tracking Functions ---
 def count_trainable_parameters(model):
     """Counts the number of trainable parameters in a model."""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-def calculate_keep_ratio(baseline_params, target_params):
-    """Calculates the keep_ratio needed to match the baseline parameter count."""
-    return baseline_params / target_params
-# --- END: HELPER FUNCTIONS (RESTORED) ---
+def calculate_keep_ratio(target_params, source_params):
+    """Calculates the keep_ratio needed to prune source to target count."""
+    return target_params / source_params
 
-
-# --- Resource Tracking Utilities ---
 def get_gpu_memory_usage():
     """Returns peak memory usage in MB using PyTorch's official tracker."""
     if not torch.cuda.is_available():
@@ -76,15 +73,14 @@ def run_generic_experiment(config):
     cfg_training = config['training']
     cfg_fish = config['fish_tuning']
 
-    # --- Load Dataset and Tokenizer ---
+    # --- Load Dataset, Tokenizer, and Metric ---
     print(f"Loading dataset '{cfg_dataset['name']}' and tokenizer for '{cfg_model['name']}'...")
     dataset = load_dataset(*cfg_dataset['load_args'])
     tokenizer = AutoTokenizer.from_pretrained(cfg_model['name'])
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
         cfg_model.setdefault('config_overrides', {})['pad_token_id'] = tokenizer.eos_token_id
-
-    # --- Define Metric Computation ---
+    
     def compute_metrics(eval_pred):
         predictions, labels = eval_pred
         predictions = np.argmax(predictions, axis=1)
@@ -162,14 +158,16 @@ def run_generic_experiment(config):
             )
             model_for_fish_peft = get_peft_model(model_for_fish, lora_config_fish)
             fish_trainable_params = count_trainable_parameters(model_for_fish_peft)
+
+            # --- START: NEW RATIO LOGIC ---
             prune_ratio = cfg_fish.get('prune_to_ratio_of_baseline', 1.0)
             target_trainable_params = int(baseline_trainable_params * prune_ratio)
-            
             keep_ratio = calculate_keep_ratio(target_trainable_params, fish_trainable_params)
-        
+            
             print(f"Targeting {prune_ratio:.0%} of baseline params: {target_trainable_params:,}")
             print(f"Calculated keep_ratio to hit target: {keep_ratio:.4f}")
-            
+            # --- END: NEW RATIO LOGIC ---
+
             calibration_dataset = tokenized_dataset["train"].shuffle(seed=42).select(range(cfg_fish['num_samples']))
             cols_to_remove = [cfg_dataset['text_column']]
             if 'idx' in calibration_dataset.column_names: cols_to_remove.append('idx')
@@ -227,7 +225,7 @@ def run_generic_experiment(config):
             results[exp_name] = {
                 'Train Time (s)': f"{timer_masked.elapsed_seconds():.2f}",
                 'Peak GPU Mem': peak_mem_masked,
-                'Final Trainable Params': baseline_trainable_params,
+                'Final Trainable Params': target_trainable_params, # Use the new target
                 f'Val {masked_training_args.metric_for_best_model.capitalize()}': eval_results_masked[eval_key_masked]
             }
             
