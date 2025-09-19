@@ -1,0 +1,84 @@
+# configs/experiments/tinyllama_rte_fish_25.yaml
+# -----------------------------------------------------------------------------
+# Experiment: Fine-tune TinyLlama-1.1B on the RTE dataset.
+# Goal: Compare standard LoRA with FISH-Tuning, which is pruned to use
+#       only 25% of the baseline LoRA's trainable parameters.
+# Designed for standard Kaggle GPUs (e.g., T4, P100).
+# -----------------------------------------------------------------------------
+
+model:
+  name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  # Override model config to match the number of labels in RTE and add a pad token
+  config_overrides:
+    num_labels: 2
+    pad_token_id: 0 # TinyLlama tokenizer does not have a pad token by default
+
+dataset:
+  name: "glue"
+  load_args: ["glue", "rte"] # Load the RTE subset of the GLUE benchmark
+  text_column: "sentence1" # Using sentence1 as the primary input for simplicity
+  validation_split: "validation"
+  label_column: "label"
+
+lora:
+  # A larger rank for the FISH model to create a larger parameter pool to prune from.
+  # This is a key part of the FISH-Tuning strategy.
+  baseline_rank: 8
+  fish_rank: 32 # Start with more parameters before pruning down.
+  
+  # Target modules for LoRA. These are typical for Llama-style models.
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+    
+  dropout: 0.05
+  
+  # We will exclude the final classification layer from being sparsified.
+  # This is a best practice to maintain prediction stability.
+  names_to_exclude:
+    - "score"
+
+training:
+  output_dir: "./results/tinyllama-rte"
+  max_seq_length: 256 # RTE sentences are short; 256 is more than enough.
+  
+  # Override base training arguments for a quicker, memory-safe run on Kaggle.
+  args_override:
+    num_train_epochs: 3
+    per_device_train_batch_size: 4       # Smaller batch size to conserve memory
+    gradient_accumulation_steps: 4       # Accumulate gradients to simulate a larger batch size (effective batch size = 16)
+    evaluation_strategy: "epoch"
+    save_strategy: "epoch"
+    learning_rate: 0.00002
+    weight_decay: 0.01
+    lr_scheduler_type: "cosine"
+    warmup_ratio: 0.05
+    load_best_model_at_end: true
+    metric_for_best_model: "accuracy"
+    logging_steps: 50
+    fp16: true  # Enable mixed-precision training; crucial for memory saving on Kaggle
+
+fish_tuning:
+  # Run all three masked experiments for a full comparison
+  methods_to_run: ["fish"]
+  
+  # THIS IS THE KEY PARAMETER:
+  # We will prune the LoRA parameters of the FISH model until it has
+  # only 25% of the trainable parameters of the baseline LoRA model.
+  prune_to_ratio_of_baseline: 0.25
+
+  # Number of samples for calculating Fisher scores. 128 is a reasonable default.
+  num_samples: 256
+
+base_training:
+  # These are the base arguments. `args_override` above will modify them.
+  # WandB is disabled here as requested.
+  args:
+    report_to: "none" # Disables all reporting, including WandB
+    do_train: true
+    do_eval: true
+    # Default values below are mostly overridden by args_override
+    per_device_eval_batch_size: 8
+    
