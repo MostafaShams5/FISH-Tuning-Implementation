@@ -1,0 +1,85 @@
+# configs/experiments/deberta_mnli_fish_25.yaml
+# -----------------------------------------------------------------------------
+# EXPERIMENT CONFIGURATION:
+#   - Model: microsoft/deberta-v3-base
+#   - Task: GLUE MNLI (Multi-Genre Natural Language Inference)
+#   - Method: FISH-Tuning with LoRA
+#   - Sparsity: Keep the top 25% of LoRA parameters based on Fisher Info.
+# -----------------------------------------------------------------------------
+
+# --- Model Configuration ---
+model:
+  name_or_path: "microsoft/deberta-v3-base" # Using a powerful and modern base model.
+  # We will apply PEFT/LoRA in the main script, so no PEFT config is needed here.
+
+# --- Data Configuration ---
+data:
+  task_name: "mnli"           # Specify the GLUE task. MNLI is a challenging 3-class classification task.
+  pad_to_max_length: false    # Use dynamic padding for efficiency. The collator will pad each batch to the longest sequence in that batch.
+  overwrite_cache: false      # Don't re-process the data if a cached version exists.
+
+# --- Fine-Tuning Method Configuration ---
+method:
+  peft_method: "lora"         # We are applying FISH-Tuning on top of LoRA.
+  trainer_type: "fish_tuning" # This key tells our main script to use the custom `FishTuningTrainer`.
+  
+  # --- LoRA Specifics ---
+  lora:
+    r: 32                     # LoRA rank. 16 is a solid choice for good performance vs. parameter count trade-off.
+    lora_alpha: 64            # Standard practice is to set alpha = 2 * r.
+    target_modules:           # Modules to apply LoRA to. These are specific to DeBERTa-v3.
+      - "query_proj"
+      - "key_proj"
+      - "value_proj"
+      - "dense"               # Also applying to the attention output projection.
+    lora_dropout: 0.05        # A small amount of dropout can help prevent overfitting.
+  
+  # --- FISH-Tuning Specifics ---
+  fisher:
+    keep_ratio: 0.25          # THE CORE SETTING: Keep only the top 25% of the LoRA parameters.
+    # How many samples to use for calculating Fisher Information.
+    # MNLI has a large dataset (~392k samples), so 1024 is a reasonable and statistically significant subset.
+    calibration_num_samples: 2048 
+    # Define which parameters should NOT be sparsified. The 'classifier' head
+    # is crucial and should always be trained densely.
+    names_to_exclude:
+      - "classifier"
+      - "pooler"              # DeBERTa also has a 'pooler' layer before the classifier.
+
+# --- Training Configuration ---
+training:
+  # --- Directory and Logging ---
+  output_dir: "./results/deberta-v3-base-mnli-fish-25" # Descriptive output directory.
+  overwrite_output_dir: true  # Start fresh for this experiment. Set to false to resume.
+  report_to: "none"           # Disable wandb/tensorboard for this example. Change to "wandb" if you use it.
+  logging_steps: 500          # Log training loss and other metrics every 500 steps.
+
+  # --- Core Hyperparameters ---
+  do_train: true
+  do_eval: true
+  num_train_epochs: 3         # Train for 3 full epochs. This is standard for GLUE fine-tuning.
+  per_device_train_batch_size: 16 # Adjust based on your GPU VRAM. 16 is a good starting point for a ~12GB card.
+  per_device_eval_batch_size: 32  # Can often use a larger batch size for evaluation as no gradients are stored.
+  learning_rate: 0.00002        # A small learning rate is crucial for stable fine-tuning. 2e-5 is a standard default for AdamW.
+  weight_decay: 0.01          # Apply a small amount of weight decay for regularization.
+  
+  # --- Learning Rate Scheduler ---
+  warmup_ratio: 0.1           # Use the first 10% of training steps to linearly warm up the learning rate from 0. This improves stability.
+  lr_scheduler_type: "cosine" # Cosine annealing is a modern and effective learning rate schedule.
+
+  # --- Evaluation and Saving Strategy ---
+  evaluation_strategy: "steps" # Evaluate the model at regular step intervals.
+  eval_steps: 1000             # Evaluate on the MNLI validation set every 1000 steps.
+  save_strategy: "steps"       # Save model checkpoints based on the same interval.
+  save_steps: 1000
+  save_total_limit: 2          # Only keep the best and the latest checkpoint to save disk space.
+  
+  # --- Best Model Logic ---
+  # The MNLI metric is 'accuracy'. We want to load the checkpoint that had the best validation accuracy at the end.
+  load_best_model_at_end: true
+  metric_for_best_model: "accuracy"
+  greater_is_better: true
+
+  # --- Other Settings ---
+  seed: 42                    # For reproducibility.
+  fp16: true                  # Use mixed-precision training. Massively speeds up training and reduces VRAM usage on modern GPUs.
