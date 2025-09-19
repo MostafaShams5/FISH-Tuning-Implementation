@@ -1,4 +1,4 @@
-# configs/experiments/tinyllama_rte_fish_25.yaml
+# configs/experiments/tinyllama_rte_fish_25.yaml (Corrected Version)
 # -----------------------------------------------------------------------------
 # Experiment: Fine-tune TinyLlama-1.1B on the RTE dataset.
 # Goal: Compare standard LoRA with FISH-Tuning, which is pruned to use
@@ -8,15 +8,17 @@
 
 model:
   name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-  # Override model config to match the number of labels in RTE and add a pad token
+  # Override model config ONLY to add a pad token.
+  # The script will calculate num_labels dynamically from the dataset.
   config_overrides:
-    num_labels: 2
     pad_token_id: 0 # TinyLlama tokenizer does not have a pad token by default
 
 dataset:
   name: "glue"
-  load_args: ["glue", "rte"] # Load the RTE subset of the GLUE benchmark
-  text_column: "sentence1" # Using sentence1 as the primary input for simplicity
+  load_args: ["glue", "rte"]       # Load the RTE subset of the GLUE benchmark
+  text_column: "sentence1"         # Your script is set up for one text column.
+                                   # For a true RTE task, you would modify the script 
+                                   # to combine sentence1 and sentence2.
   validation_split: "validation"
   label_column: "label"
 
@@ -79,6 +81,4 @@ base_training:
     report_to: "none" # Disables all reporting, including WandB
     do_train: true
     do_eval: true
-    # Default values below are mostly overridden by args_override
     per_device_eval_batch_size: 8
-    
