@@ -1,57 +1,68 @@
-# configs/experiments/minilm_rte_fish_25.yaml
+# configs/experiments/minilm_qnli_fish_25_FIXED.yaml
 # -----------------------------------------------------------------------------
-# EXPERIMENT CONFIGURATION for MiniLMv2 on RTE
-# A very fast, moderate-sized experiment that is compatible with the script's logic.
-# Format: Strictly follows the prajjwal_tinymodel_smoketest.yaml structure.
+# EXPERIMENT CONFIGURATION for MiniLMv2 on QNLI
+# FIX: Removed text_column and text_pair_column to resolve the ValueError.
+# This forces the script to use its reliable internal mapping for GLUE tasks.
 # -----------------------------------------------------------------------------
 
 model:
+  # A smaller, faster, but still powerful distilled model.
   name: "microsoft/MiniLM-L12-H384-uncased"
 
 dataset:
-  # Switched to RTE. It's a binary entailment task and is very small.
-  name: "rte"
-  load_args: ["glue", "rte"]
-  # We remove text_column/text_pair_column. The script will auto-detect
-  # "sentence1" and "sentence2", which are the correct columns for RTE.
+  # QNLI is a substantial GLUE task but ~4x smaller than MNLI.
+  name: "qnli"
+  load_args: ["glue", "qnli"]
+  # THE FIX IS HERE: The following two lines are removed.
+  # By removing them, we force the script to look at the 'name: "qnli"'
+  # and use its internal logic to correctly identify "question" and "sentence"
+  # as the two input columns for this sentence-pair task.
   validation_split: "validation"
 
 lora:
   baseline_rank: 8 # Placeholder
-  fish_rank: 32
-  lora_alpha: 64
+  # Rank 8 is a good starting point for a smaller model like MiniLM.
+  fish_rank: 16
+  lora_alpha: 32    # Standard practice: 2 * rank
   dropout: 0.05
+  # Target modules for BERT-like architectures
   target_modules:
     - "query"
     - "key"
     - "value"
+  # MiniLM has a standard classifier head, no pooler to exclude.
   names_to_exclude:
     - "classifier"
 
 training:
+  # 128 is a very safe and fast sequence length for QNLI.
   max_seq_length: 128
-  output_dir: "./results/minilm-rte-fish-25"
+  output_dir: "./results/minilm-qnli-fish-25"
+  # All Hugging Face TrainingArguments go inside this 'args_override' block
   args_override:
     # -- Core Hyperparameters --
-    # RTE is very small, so it can overfit. 3-5 epochs is typical.
-    num_train_epochs: 7
-    # We can use a large batch size because the dataset is tiny.
+    num_train_epochs: 3
+    # MiniLM is much smaller, so we can use a larger batch size. This speeds up training.
     per_device_train_batch_size: 32
     per_device_eval_batch_size: 64
+    # A slightly higher learning rate is often effective for smaller models.
     learning_rate: 0.00003
     weight_decay: 0.01
 
     # -- Directory and Logging --
     overwrite_output_dir: true
-    logging_steps: 20
+    logging_steps: 100
     report_to: "none"
 
+    # -- Scheduler --
+    warmup_ratio: 0.1
+    lr_scheduler_type: "cosine"
+
     # -- Evaluation and Saving --
-    # An epoch is only ~77 steps. Evaluate every 40 steps.
-    evaluation_strategy: "steps"
-    eval_steps: 40
+    # An epoch is ~3300 steps. Evaluating every 500 steps is reasonable.
+    eval_steps: 500
     save_strategy: "steps"
-    save_steps: 40
+    save_steps: 500
     save_total_limit: 2
     load_best_model_at_end: true
     metric_for_best_model: "accuracy"
@@ -63,7 +74,9 @@ training:
 
 fish_tuning:
   methods_to_run: ["fish"]
-  # The dataset is small, so we need fewer samples for the Fisher calculation.
+  # 512 samples is plenty for a good Fisher estimate on this dataset size.
   num_samples: 1024
-  # Keeping the top 25% of LoRA parameters.
-  prune_to_ratio_of_baseline: 0.25
+  # We still want to keep the top 25% of the LoRA parameters.
+  prune_to_ratio_of_baseline: 0.25```
+
+This configuration should now run without the `ValueError` and successfully train your MiniLM model on the QNLI dataset.
