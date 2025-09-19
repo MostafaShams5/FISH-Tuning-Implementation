@@ -13,7 +13,7 @@ model:
   # We will apply PEFT/LoRA in the main script, so no PEFT config is needed here.
 
 # --- Data Configuration ---
-data:
+dataset:
   task_name: "mnli"           # Specify the GLUE task. MNLI is a challenging 3-class classification task.
   pad_to_max_length: false    # Use dynamic padding for efficiency. The collator will pad each batch to the longest sequence in that batch.
   overwrite_cache: false      # Don't re-process the data if a cached version exists.
