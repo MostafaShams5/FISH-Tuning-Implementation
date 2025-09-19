@@ -1,68 +1,57 @@
-# configs/experiments/minilm_qnli_fish_25.yaml
+# configs/experiments/minilm_rte_fish_25.yaml
 # -----------------------------------------------------------------------------
-# EXPERIMENT CONFIGURATION for MiniLMv2 on QNLI
-# A faster, moderate-sized experiment.
+# EXPERIMENT CONFIGURATION for MiniLMv2 on RTE
+# A very fast, moderate-sized experiment that is compatible with the script's logic.
 # Format: Strictly follows the prajjwal_tinymodel_smoketest.yaml structure.
 # -----------------------------------------------------------------------------
 
 model:
-  # A smaller, faster, but still powerful distilled model.
   name: "microsoft/MiniLM-L12-H384-uncased"
 
 dataset:
-  # QNLI is a substantial GLUE task but ~4x smaller than MNLI.
-  name: "qnli"
-  load_args: ["glue", "qnli"]
-  # The text fields for the QNLI dataset are "question" and "sentence".
-  text_column: "question"
-  text_pair_column: "sentence"
+  # Switched to RTE. It's a binary entailment task and is very small.
+  name: "rte"
+  load_args: ["glue", "rte"]
+  # We remove text_column/text_pair_column. The script will auto-detect
+  # "sentence1" and "sentence2", which are the correct columns for RTE.
   validation_split: "validation"
 
 lora:
   baseline_rank: 8 # Placeholder
-  # Rank 8 is a good starting point for a smaller model like MiniLM.
   fish_rank: 32
-  lora_alpha: 64    # Standard practice: 2 * rank
+  lora_alpha: 64
   dropout: 0.05
-  # Target modules for BERT-like architectures
   target_modules:
     - "query"
     - "key"
     - "value"
-  # MiniLM has a standard classifier head, no pooler to exclude.
   names_to_exclude:
     - "classifier"
 
 training:
-  # 128 is a very safe and fast sequence length for QNLI.
-  max_seq_length: 256
-  output_dir: "./results/minilm-qnli-fish-25"
-  # All Hugging Face TrainingArguments go inside this 'args_override' block
+  max_seq_length: 128
+  output_dir: "./results/minilm-rte-fish-25"
   args_override:
     # -- Core Hyperparameters --
-    num_train_epochs: 3
-    # MiniLM is much smaller, so we can safely use a larger batch size. This speeds up training.
-    per_device_train_batch_size: 16
-    per_device_eval_batch_size: 32
-    # A slightly higher learning rate is often effective for smaller models.
-    learning_rate: 0.0003
+    # RTE is very small, so it can overfit. 3-5 epochs is typical.
+    num_train_epochs: 7
+    # We can use a large batch size because the dataset is tiny.
+    per_device_train_batch_size: 32
+    per_device_eval_batch_size: 64
+    learning_rate: 0.00003
     weight_decay: 0.01
 
     # -- Directory and Logging --
     overwrite_output_dir: true
-    logging_steps: 500
+    logging_steps: 20
     report_to: "none"
 
-    # -- Scheduler --
-    warmup_ratio: 0.1
-    lr_scheduler_type: "cosine"
-
     # -- Evaluation and Saving --
+    # An epoch is only ~77 steps. Evaluate every 40 steps.
     evaluation_strategy: "steps"
-    # An epoch is ~3300 steps. Evaluating every 500 steps is reasonable.
-    eval_steps: 500
+    eval_steps: 40
     save_strategy: "steps"
-    save_steps: 500
+    save_steps: 40
     save_total_limit: 2
     load_best_model_at_end: true
     metric_for_best_model: "accuracy"
@@ -71,12 +60,10 @@ training:
     # -- Other Settings --
     seed: 42
     fp16: true
-    # We likely don't need gradient checkpointing for this smaller model,
-    # which will make the training faster.
 
 fish_tuning:
   methods_to_run: ["fish"]
-  # 512 samples is plenty for a good Fisher estimate on this dataset size.
+  # The dataset is small, so we need fewer samples for the Fisher calculation.
   num_samples: 1024
-  # We still want to keep the top 25% of the LoRA parameters.
+  # Keeping the top 25% of LoRA parameters.
   prune_to_ratio_of_baseline: 0.25
