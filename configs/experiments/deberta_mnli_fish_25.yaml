@@ -40,14 +40,15 @@ lora:
 
 training:
   # Max sequence length for MNLI. DeBERTa can handle longer sequences well.
-  max_seq_length: 512
+  max_seq_length: 256
   output_dir: "./results/deberta-v3-base-mnli-fish-25"
   # All Hugging Face TrainingArguments go inside this 'args_override' block
   args_override:
     # -- Core Hyperparameters --
     num_train_epochs: 3
-    per_device_train_batch_size: 16
-    per_device_eval_batch_size: 32
+    per_device_train_batch_size: 8
+    per_device_eval_batch_size: 16
+    gradient_accumulation_steps: 2
     learning_rate: 0.00002
     weight_decay: 0.01
 
@@ -77,6 +78,7 @@ training:
 fish_tuning:
   # Assuming your script can run a single method.
   # We are only running the main "fish" method here.
+  gradient_checkpointing: true
   methods_to_run: ["fish"]
   # Number of samples for Fisher calculation.
   num_samples: 2048
