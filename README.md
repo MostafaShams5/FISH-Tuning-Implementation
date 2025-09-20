@@ -9,8 +9,9 @@ This means that even within these small, efficient modules, some parameters are 
 FISH-Tuning calculates these scores for all the new PEFT parameters and then creates a "mask" to freeze the least important ones. This allows the model to focus its training effort only on the parameters that matter most, leading to a more effective and targeted fine-tuning process.
 
 This allows us to:
-1.  Achieve **better performance** than standard PEFT methods while using the same number of trainable parameters.
-2.  Drastically **reduce the number of trainable parameters** with minimal impact on performance, saving resources.
+
+1. Achieve **better performance** than standard PEFT methods while using the same number of trainable parameters.
+2. Drastically **reduce the number of trainable parameters** with minimal impact on performance, saving resources.
 
 This implementation is built on top of Hugging Face `transformers` and `peft`, making it easy to use in your own projects.
 
@@ -21,21 +22,22 @@ We've run several experiments to show that this method works just as well in pra
 ### 1. Replicating the Paper's Findings (BERT on SST2)
 
 Our first goal was to confirm the results from the original paper. We ran an experiment fine-tuning a `bert-base-cased` model on the `sst2` dataset. We compared four approaches:
-- **Original LoRA**: The standard baseline.
-- **LoRA-FISH (Ours)**: Our implementation, using Fisher scores to guide training.
-- **LoRA-FISH-rand**: A control group where we randomly pick which parameters to train.
-- **LoRA-FISH-rev**: A control group where we train the *least* important parameters.
+
+* **Original LoRA**: The standard baseline.
+* **LoRA-FISH (Ours)**: Our implementation, using Fisher scores to guide training.
+* **LoRA-FISH-rand**: A control group where we randomly pick which parameters to train.
+* **LoRA-FISH-rev**: A control group where we train the *least* important parameters.
 
 To make it a fair fight, all masked methods (`-FISH`, `-rand`, `-rev`) were set up to have the **exact same number of trainable parameters** as the Original LoRA baseline.
 
 **Our Results:**
 
-| Method | Train Time (s) | Peak GPU Mem | Final Trainable Params | Val Accuracy |
-| :--- | :--- | :--- | :--- | :--- |
-| Original LoRA | 2303.90 | 1575.23 MB | 443,906 | 0.9048 |
-| **LoRA-FISH (Ours)** | **2328.78** | **1604.19 MB** | **443,906** | **0.9094** |
-| LoRA-FISH-rand | 2328.83 | 1603.69 MB | 443,906 | 0.9025 |
-| LoRA-FISH-rev | 2323.71 | 1603.69 MB | 443,906 | 0.7443 |
+| Method               | Train Time (s) | Peak GPU Mem   | Final Trainable Params | Val Accuracy |
+| :------------------- | :------------- | :------------- | :--------------------- | :----------- |
+| Original LoRA        | 2303.90        | 1575.23 MB     | 443,906                | 0.9048       |
+| **LoRA-FISH (Ours)** | **2328.78**    | **1604.19 MB** | **443,906**            | **0.9094**   |
+| LoRA-FISH-rand       | 2328.83        | 1603.69 MB     | 443,906                | 0.9025       |
+| LoRA-FISH-rev        | 2323.71        | 1603.69 MB     | 443,906                | 0.7443       |
 
 You can clearly see that **LoRA-FISH (Ours) achieved a higher accuracy than original LoRA**. The fact that the random method did worse and the reverse-importance method failed badly proves that the Fisher score is successfully identifying the parameters that truly matter.
 
@@ -44,17 +46,18 @@ You can clearly see that **LoRA-FISH (Ours) achieved a higher accuracy than orig
 Our results show the exact same pattern as the paper's own contrastive study (Table 3). Here is the data from their experiments on the GLUE benchmark:
 
 | Method (from paper) | Trainable Params | GLUE Avg Score |
-| :--- | :--- | :--- |
-| Original-LoRA | 0.0057% | 68.45 |
-| **LoRA-FISH** | **0.0057%** | **68.90** |
-| LoRA-FISH-rand | 0.0057% | 68.74 |
-| LoRA-FISH-rev | 0.0057% | 66.71 |
+| :------------------ | :--------------- | :------------- |
+| Original-LoRA       | 0.0057%          | 68.45          |
+| **LoRA-FISH**       | **0.0057%**      | **68.90**      |
+| LoRA-FISH-rand      | 0.0057%          | 68.74          |
+| LoRA-FISH-rev       | 0.0057%          | 66.71          |
 
 In both our experiment and the paper's, the conclusion is identical: **FISH > rand > rev**. Selecting parameters by Fisher score is the best approach, while selecting the *least* important parameters is the worst. This confirms our implementation is behaving exactly as expected.
 
 > You can find the full experiment notebook on Kaggle: [BERT-SST2 LoRA vs FISH-Tuning](https://www.kaggle.com/code/shamsccs/bertsst2).
 
 #### A Note on Resources and Replication
+
 Please keep in mind that due to the resource limitations of free notebooks on Kaggle, we couldn't replicate every experiment from the paper, such as running on the full GLUE benchmark. Instead, we focused on key, representative tasks to validate the core ideas.
 
 You may also notice in our results that LoRA-FISH can use slightly more peak GPU memory than the baseline LoRA. **This is expected behavior.** As the original paper explains in section 5.4.4, this small increase is because the model needs to store the generated gradient mask in memory during training.
@@ -69,10 +72,10 @@ We fine-tuned `TinyLlama-1.1B` but configured LoRA-FISH to use only **25% of the
 
 **Results:**
 
-| Method | Train Time (s) | Peak GPU Mem | Final Trainable Params | Val Accuracy |
-| :--- | :--- | :--- | :--- | :--- |
-| Original LoRA | 4938.97 | 12021.40 MB | 2,256,896 | 0.9006 |
-| **LoRA-FISH (Ours)** | **4959.14** | **12233.47 MB** | **564,224** | **0.8856** |
+| Method               | Train Time (s) | Peak GPU Mem    | Final Trainable Params | Val Accuracy |
+| :------------------- | :------------- | :-------------- | :--------------------- | :----------- |
+| Original LoRA        | 4938.97        | 12021.40 MB     | 2,256,896              | 0.9006       |
+| **LoRA-FISH (Ours)** | **4959.14**    | **12233.47 MB** | **564,224**            | **0.8856**   |
 
 With a **4x reduction in trainable parameters**, the accuracy only dropped by a minor 1.5%. This demonstrates the efficiency of FISH-Tuning.
 
@@ -84,10 +87,10 @@ We ran a similar test on a much smaller model (`bert-tiny`) and used **50% of th
 
 **Results:**
 
-| Method | Train Time (s) | Peak GPU Mem | Final Trainable Params | Val Accuracy |
-| :--- | :--- | :--- | :--- | :--- |
-| Original LoRA | 4.20 | 68.53 MB | 6,402 | 0.5103 |
-| **LoRA-FISH (Ours)** | **1.61** | **76.94 MB** | **3,201** | **0.5069** |
+| Method               | Train Time (s) | Peak GPU Mem | Final Trainable Params | Val Accuracy |
+| :------------------- | :------------- | :----------- | :--------------------- | :----------- |
+| Original LoRA        | 4.20           | 68.53 MB     | 6,402                  | 0.5103       |
+| **LoRA-FISH (Ours)** | **1.61**       | **76.94 MB** | **3,201**              | **0.5069**   |
 
 Once again, the results were favorable. We **halved the trainable parameters** with almost no change in performance.
 
@@ -98,14 +101,18 @@ Once again, the results were favorable. We **halved the trainable parameters** w
 The project is built to be easy to use. Here's how you can get started.
 
 ### Step 1: Clone the Repository
+
 First, get the code on your local machine.
+
 ```bash
 git clone https://github.com/MostafaShams5/FISH-Tuning-Implementation.git
 cd FISH-Tuning-Implementation
 ```
 
 ### Step 2: Set Up Your Environment
+
 We recommend using a virtual environment to keep your packages organized.
+
 ```bash
 # Create a virtual environment
 python -m venv venv
@@ -116,15 +123,19 @@ source venv/bin/activate
 # Install the required packages
 pip install -r requirements.txt
 ```
+
 Make sure you have PyTorch installed with CUDA support if you want to use a GPU.
 
 ### Step 3: Run an Experiment
+
 You have two main ways to use this code.
 
 #### Path A: The Quick Way (Using Config Files)
+
 This is the fastest way to run a full experiment comparing LoRA and LoRA-FISH. Just create a YAML file in `configs/experiments/` and let our script handle the rest.
 
 For example, to run your own test, create `configs/experiments/my_experiment.yaml`:
+
 ```yaml
 model:
   name: "roberta-base"
@@ -136,12 +147,15 @@ lora:
 fish_tuning:
   prune_to_ratio_of_baseline: 0.5 # We want the final model to have 50% of baseline's params
 ```
+
 Then, launch the experiment from your terminal:
+
 ```bash
 python scripts/run_experiment.py --config configs/experiments/my_experiment.yaml
 ```
 
 #### Path B: The Engineer's Way (Integrating into Your Project)
+
 For full control, you can integrate FISH-Tuning directly into your own training code. The `src/fish_tuning` directory contains everything you need. Here is a guide on how to use the core components in your own script.
 
 ```python
@@ -199,8 +213,8 @@ trainer = FishTuningTrainer(
 # Now you can train your model as usual. The trainer will handle
 # applying the mask to the gradients automatically.
 trainer.train()
-
 ```
+
 This approach allows you to seamlessly add the intelligence of FISH-Tuning to any existing fine-tuning workflow.
 
 ## Citation
