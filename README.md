@@ -41,18 +41,23 @@ You can clearly see that **LoRA-FISH (Ours) achieved a higher accuracy than orig
 
 #### **Comparison with the Original Paper**
 
-Let's see how our results line up with the paper. The paper evaluates on the average score across six GLUE tasks, while our experiment focuses specifically on SST2 Accuracy. Even though the metrics are different, the **conclusion is exactly the same**.
+Our results show the exact same pattern as the paper's own contrastive study (Table 3). Here is the data from their experiments on the GLUE benchmark:
 
-Here are the paper's results from Table 1 for the lowest parameter count:
+| Method (from paper) | Trainable Params | GLUE Avg Score |
+| :--- | :--- | :--- |
+| Original-LoRA | 0.0057% | 68.45 |
+| **LoRA-FISH** | **0.0057%** | **68.90** |
+| LoRA-FISH-rand | 0.0057% | 68.74 |
+| LoRA-FISH-rev | 0.0057% | 66.71 |
 
-| Method (from paper) | GLUE Avg Score |
-| :--- | :--- |
-| Original-LoRA | 68.45 |
-| **LORA-FISH** | **68.90** |
-
-In both our experiment and the paper's, **FISH-Tuning provides a clear performance boost** over the baseline when using the same number of parameters. Our implementation successfully validates their findings.
+In both our experiment and the paper's, the conclusion is identical: **FISH > rand > rev**. Selecting parameters by Fisher score is the best approach, while selecting the *least* important parameters is the worst. This confirms our implementation is behaving exactly as expected.
 
 > You can find the full experiment notebook on Kaggle: [BERT-SST2 LoRA vs FISH-Tuning](https://www.kaggle.com/code/shamsccs/bertsst2).
+
+#### A Note on Resources and Replication
+Please keep in mind that due to the resource limitations of free notebooks on Kaggle, we couldn't replicate every experiment from the paper, such as running on the full GLUE benchmark. Instead, we focused on key, representative tasks to validate the core ideas.
+
+You may also notice in our results that LoRA-FISH can use slightly more peak GPU memory than the baseline LoRA. **This is expected behavior.** As the original paper explains in section 5.4.4, this small increase is because the model needs to store the generated gradient mask in memory during training.
 
 ### 2. Pushing the Boundaries with Fewer Parameters
 
