@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fish-tuning"
+version = "0.1.0"
+description = "An Implementation of FISH-Tuning: Enhancing PEFT Methods with Fisher Information"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Mostafa Shams"} 
+]
+# I've copied these versions exactly from requirements.txt
+dependencies = [
+    "transformers==4.38.2",
+    "datasets==2.18.0",
+    "peft==0.9.0",
+    "accelerate==0.27.2",
+    "pandas==2.2.1",
+    "pyyaml==6.0.1",
+    "evaluate==0.4.1",
+    "scikit-learn==1.2.2",
+    "pynvml"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
