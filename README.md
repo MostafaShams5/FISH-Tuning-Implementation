@@ -6,6 +6,14 @@ The core idea is based on making already-efficient tuning methods even smarter. 
 
 This means that even within these small, efficient modules, some parameters are more important than others for learning a new task. FISH-Tuning uses the **Fisher Information Matrix (FIM)** to figure out which parameters are the most critical. Think of Fisher Information as a way to measure a parameter's influence—a high score means changing that parameter will have a big effect on the model's predictions.
 
+A visual comparison of standard LoRA versus LoRA-FISH is shown below. While standard LoRA trains dense adapter matrices, FISH-Tuning identifies and freezes less important parameters (grey boxes), resulting in sparse updates focused only on critical weights.
+
+<p align="center">
+  <img src="Original LoRA vs LoRA-FISH.png" alt="Comparison of Original LoRA vs LoRA-FISH" width="800">
+  <br>
+  <em>Figure 1: Visual comparison from the paper showing Original LoRA (left) where all adapter parameters are trainable, and LoRA-FISH (right) where only parameters with high Fisher information are trained.</em>
+</p>
+
 FISH-Tuning calculates these scores for all the new PEFT parameters and then creates a "mask" to freeze the least important ones. This allows the model to focus its training effort only on the parameters that matter most, leading to a more effective and targeted fine-tuning process.
 
 This allows us to:
@@ -35,7 +43,7 @@ To make it a fair fight, all masked methods (`-FISH`, `-rand`, `-rev`) were set 
 | Method               | Train Time (s) | Peak GPU Mem   | Final Trainable Params | Val Accuracy |
 | :------------------- | :------------- | :------------- | :--------------------- | :----------- |
 | Original LoRA        | 2303.90        | 1575.23 MB     | 443,906                | 0.9048       |
-| **LoRA-FISH (Ours)** | **2328.78**    | **1604.19 MB** | **443,906**            | **0.9094**   |
+| **LoRA-FISH (Ours)** | **2328.78** | **1604.19 MB** | **443,906** | **0.9094** |
 | LoRA-FISH-rand       | 2328.83        | 1603.69 MB     | 443,906                | 0.9025       |
 | LoRA-FISH-rev        | 2323.71        | 1603.69 MB     | 443,906                | 0.7443       |
 
@@ -48,13 +56,13 @@ Our results show the exact same pattern as the paper's own contrastive study (Ta
 | Method (from paper) | Trainable Params | GLUE Avg Score |
 | :------------------ | :--------------- | :------------- |
 | Original-LoRA       | 0.0057%          | 68.45          |
-| **LoRA-FISH**       | **0.0057%**      | **68.90**      |
+| **LoRA-FISH** | **0.0057%** | **68.90** |
 | LoRA-FISH-rand      | 0.0057%          | 68.74          |
 | LoRA-FISH-rev       | 0.0057%          | 66.71          |
 
 In both our experiment and the paper's, the conclusion is identical: **FISH > rand > rev**. Selecting parameters by Fisher score is the best approach, while selecting the *least* important parameters is the worst. This confirms our implementation is behaving exactly as expected.
 
-> You can find the full experiment notebook on Kaggle: [BERT-SST2 LoRA vs FISH-Tuning](https://www.kaggle.com/code/shamsccs/bertsst2).
+> **Reproduction Proof:** You can view the full execution logs, code, and final metrics of this exact experiment in our [runnable Kaggle Notebook](https://www.kaggle.com/code/shamsccs/bertsst2).
 
 #### A Note on Resources and Replication
 
@@ -75,7 +83,7 @@ We fine-tuned `TinyLlama-1.1B` but configured LoRA-FISH to use only **25% of the
 | Method               | Train Time (s) | Peak GPU Mem    | Final Trainable Params | Val Accuracy |
 | :------------------- | :------------- | :-------------- | :--------------------- | :----------- |
 | Original LoRA        | 4938.97        | 12021.40 MB     | 2,256,896              | 0.9006       |
-| **LoRA-FISH (Ours)** | **4959.14**    | **12233.47 MB** | **564,224**            | **0.8856**   |
+| **LoRA-FISH (Ours)** | **4959.14** | **12233.47 MB** | **564,224** | **0.8856** |
 
 With a **4x reduction in trainable parameters**, the accuracy only dropped by a minor 1.5%. This demonstrates the efficiency of FISH-Tuning.
 
@@ -90,11 +98,18 @@ We ran a similar test on a much smaller model (`bert-tiny`) and used **50% of th
 | Method               | Train Time (s) | Peak GPU Mem | Final Trainable Params | Val Accuracy |
 | :------------------- | :------------- | :----------- | :--------------------- | :----------- |
 | Original LoRA        | 4.20           | 68.53 MB     | 6,402                  | 0.5103       |
-| **LoRA-FISH (Ours)** | **1.61**       | **76.94 MB** | **3,201**              | **0.5069**   |
+| **LoRA-FISH (Ours)** | **1.61** | **76.94 MB** | **3,201** | **0.5069** |
 
 Once again, the results were favorable. We **halved the trainable parameters** with almost no change in performance.
 
 > You can find the full experiment notebook on Kaggle: [BERT-tiny Smoke Test](https://www.kaggle.com/code/shamsccs/prajjwal-tinymodel-smoketest).
+
+### Technical Insights & Trade-offs
+
+While FISH-Tuning offers superior parameter efficiency, it introduces specific engineering considerations that we observed during implementation:
+
+1.  **Pre-computation Overhead:** Before training begins, there is a one-time computational cost to pass a calibration dataset through the model to calculate Fisher scores. On Kaggle T4 GPUs, this took approximately 2-3 minutes for BERT-base.
+2.  **Peak Memory Usage:** As noted in the paper and confirmed in our logs, peak GPU memory during training is slightly higher than standard LoRA. This is because the binary mask for the gradients must be stored in GPU memory alongside the model weights. The increase is minor but relevant for constrained environments.
 
 ## How to Use This Repository
 
@@ -120,8 +135,8 @@ python -m venv venv
 # Activate it (on Linux/macOS)
 source venv/bin/activate
 
-# Install the required packages
-pip install -r requirements.txt
+# Install the project in editable mode along with its dependencies
+pip install -e .
 ```
 
 Make sure you have PyTorch installed with CUDA support if you want to use a GPU.
@@ -130,7 +145,7 @@ Make sure you have PyTorch installed with CUDA support if you want to use a GPU.
 
 You have two main ways to use this code.
 
-#### Path A: The Quick Way (Using Config Files)
+**Path A: The Quick Way (Using Config Files)**
 
 This is the fastest way to run a full experiment comparing LoRA and LoRA-FISH. Just create a YAML file in `configs/experiments/` and let our script handle the rest.
 
@@ -154,7 +169,7 @@ Then, launch the experiment from your terminal:
 python scripts/run_experiment.py --config configs/experiments/my_experiment.yaml
 ```
 
-#### Path B: The Engineer's Way (Integrating into Your Project)
+**Path B: The Engineer's Way (Integrating into Your Project)**
 
 For full control, you can integrate FISH-Tuning directly into your own training code. The `src/fish_tuning` directory contains everything you need. Here is a guide on how to use the core components in your own script.
 
@@ -234,4 +249,4 @@ If you use this work in your research, please cite the original paper:
 
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for more details.
+This project is licensed under the MIT License. See the LICENSE file for more details.
