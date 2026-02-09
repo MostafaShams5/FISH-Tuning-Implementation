@@ -19,11 +19,11 @@ from peft import LoraConfig, get_peft_model, TaskType
 from torch.utils.data import DataLoader
 import sys
 
-# --- Robust Import of Local Module ---
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
-src_path = os.path.join(project_root, 'src')
-sys.path.insert(0, src_path)
+# Commented out because of the new update of making the repo a real package
+# script_dir = os.path.dirname(os.path.abspath(__file__))
+# project_root = os.path.dirname(script_dir)
+# src_path = os.path.join(project_root, 'src')
+# sys.path.insert(0, src_path)
 
 from fish_tuning import (
     FishTuningTrainer,
@@ -31,7 +31,6 @@ from fish_tuning import (
     create_mask_from_fisher,
 )
 
-# --- Helper & Resource Tracking Functions ---
 def count_trainable_parameters(model):
     """Counts the number of trainable parameters in a model."""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -63,9 +62,7 @@ class CudaTimer:
     def elapsed_seconds(self):
         return self.elapsed_time_ms / 1000
 
-# =================================================================================
-# MAIN EXPERIMENT RUNNER
-# =================================================================================
+
 def run_generic_experiment(config):
     cfg_model = config['model']
     cfg_dataset = config['dataset']
@@ -73,7 +70,6 @@ def run_generic_experiment(config):
     cfg_training = config['training']
     cfg_fish = config['fish_tuning']
 
-    # --- Load Dataset, Tokenizer, and Metric ---
     print(f"Loading dataset '{cfg_dataset['name']}' and tokenizer for '{cfg_model['name']}'...")
     dataset = load_dataset(*cfg_dataset['load_args'])
     tokenizer = AutoTokenizer.from_pretrained(cfg_model['name'])
@@ -94,9 +90,6 @@ def run_generic_experiment(config):
     results = {}
     num_labels = len(dataset['train'].unique(cfg_dataset.get('label_column', 'label')))
 
-    # =============================================================================
-    # EXPERIMENT A: BASELINE (ORIGINAL LORA)
-    # =============================================================================
     print("\n" + "="*50)
     print("RUNNING EXPERIMENT A: BASELINE (ORIGINAL LORA)")
     print("="*50)
@@ -139,9 +132,7 @@ def run_generic_experiment(config):
     del model_baseline, model_baseline_peft, trainer_baseline
     if torch.cuda.is_available(): torch.cuda.empty_cache()
 
-    # =============================================================================
-    # SETUP & RUN FOR MASKED METHODS
-    # =============================================================================
+
     if cfg_fish.get('methods_to_run'):
         print("\n" + "="*50)
         print("PRE-COMPUTATION FOR MASKED METHODS")
@@ -159,14 +150,12 @@ def run_generic_experiment(config):
             model_for_fish_peft = get_peft_model(model_for_fish, lora_config_fish)
             fish_trainable_params = count_trainable_parameters(model_for_fish_peft)
 
-            # --- START: NEW RATIO LOGIC ---
             prune_ratio = cfg_fish.get('prune_to_ratio_of_baseline', 1.0)
             target_trainable_params = int(baseline_trainable_params * prune_ratio)
             keep_ratio = calculate_keep_ratio(target_trainable_params, fish_trainable_params)
             
             print(f"Targeting {prune_ratio:.0%} of baseline params: {target_trainable_params:,}")
             print(f"Calculated keep_ratio to hit target: {keep_ratio:.4f}")
-            # --- END: NEW RATIO LOGIC ---
 
             calibration_dataset = tokenized_dataset["train"].shuffle(seed=42).select(range(cfg_fish['num_samples']))
             cols_to_remove = [cfg_dataset['text_column']]
@@ -232,9 +221,7 @@ def run_generic_experiment(config):
             del model_to_train, model_to_train_peft, trainer_masked
             if torch.cuda.is_available(): torch.cuda.empty_cache()
 
-    # =============================================================================
-    # PRINT FINAL RESULTS
-    # =============================================================================
+
     print("\n" + "="*80)
     print(f"          FINAL EXPERIMENT RESULTS for {cfg_model['name']} on {cfg_dataset['name']}")
     print("="*80)
