@@ -6,7 +6,6 @@ from tqdm import tqdm
 from typing import Dict, List, Optional
 import re
 
-# calculate_fisher_information function remains the same, as it correctly
 # calculates scores for all trainable parameters. The filtering happens next.
 def calculate_fisher_information(
     model: torch.nn.Module, 
@@ -40,7 +39,6 @@ def calculate_fisher_information(
     return fisher_scores
 
 
-# --- THIS FUNCTION IS UPDATED ---
 def create_mask_from_fisher(
     fisher_scores: Dict[str, torch.Tensor],
     keep_ratio: float,
@@ -93,7 +91,7 @@ def create_mask_from_fisher(
     all_scores_to_sparsify = torch.cat(pool_to_sparsify)
 
     # Calculate the number of parameters to keep based on the keep_ratio.
-    # IMPORTANT: This ratio is applied *only* to the pool of parameters eligible for sparsification.
+    # This ratio is applied *only* to the pool of parameters eligible for sparsification.
     num_params_to_keep = int(len(all_scores_to_sparsify) * keep_ratio)
 
     # If for some reason we end up with zero parameters to keep, we should handle it gracefully.
