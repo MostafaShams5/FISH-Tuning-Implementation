@@ -26,7 +26,7 @@ class FishTuningTrainer(Trainer):
         # First, call the constructor of the parent class (`transformers.Trainer`).
         super().__init__(*args, **kwargs)
 
-        # If no mask is provided, there's nothing more to do.
+        # If no mask is provided, JUST SKIP.
         if mask is None or not mask:
             return
 
